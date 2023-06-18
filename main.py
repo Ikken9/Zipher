@@ -1,9 +1,11 @@
 import os.path
 import subprocess
 import itertools as it
+import threading
 
 openstego = 'C:\\"Program Files (x86)"\\OpenStego\\openstego.bat'
 
+THREADS_NUMBER = 3
 
 PASSWORD_FILE = 'output.txt'
 LOG_FILE = 'log.txt'
@@ -26,17 +28,44 @@ def create_log_file(output):
         pass
 
 
-def brute_force():
-    with open(LOG_FILE, 'w') as log, open(PASSWORD_FILE) as passwords_file:
-        for password in passwords_file:
+def brute_force(thread):
+    with open(LOG_FILE, 'w') as log_file, open(PASSWORD_FILE) as passwords_file:
+        passwords = passwords_file.readlines()
+        size = len(passwords)
+        print(threading.get_ident())
+        if thread == 0:
+            start_idx = 0
+            end_idx = size // THREADS_NUMBER
+            print("t1")
+        elif thread == 1:
+            start_idx = (size // THREADS_NUMBER) + 1
+            end_idx = 2*(size // THREADS_NUMBER)
+            print("t2")
+        elif thread == 2:
+            start_idx = 2*(size // THREADS_NUMBER) + 1
+            end_idx = size
+            print("t3")
+
+        for i in range(start_idx, end_idx):
             try:
+                password = passwords[i].rstrip("\n")
+                command = f'{openstego} extract -sf "{IMAGE}" -p "{password}" -xf "{LOG_FILE}"'
+                subprocess.run(command, shell=True)
                 print(password)
-                command = f'{openstego} extract -sf "{IMAGE}" -p {password} -xf "{LOG_FILE}"'
-                # command = f'{openpuff} -extract -stegano "{IMAGE}" -p "{password}"'
-                output = subprocess.check_output(command, shell=True, stderr=subprocess.STDOUT)
-                log.write(output.decode('utf-8'))
             except subprocess.CalledProcessError as e:
-                log.write(e.output.decode('utf-8'))
+                print(e.stderr)
+
+
+def start_threads():
+    threads = []
+    for i in range(THREADS_NUMBER):
+        thread = threading.Thread(target=brute_force(i))
+        threads.append(thread)
+        print(f"thread number + {i} ")
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
 
 
 def main():
@@ -47,7 +76,7 @@ def main():
     else:
         create_password_file(LETTERS, output='output.txt')
 
-    brute_force()
+    start_threads()
 
 
 if __name__ == '__main__':
